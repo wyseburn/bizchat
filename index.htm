@@ -1,0 +1,167 @@
+<?php
+header('Content-type: text/html; charset=euc-kr');
+
+if(empty($_COOKIE['unique_id'])) {
+    $_COOKIE['unique_id'] = uniqid();
+    setcookie('unique_id', $_COOKIE['unique_id'], $_SERVER['REQUEST_TIME'] + 86400, '/');
+}
+
+define('UNIQUE_ID', $_COOKIE['unique_id']);
+?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=euc-kr">
+<title>Insert title here</title>
+<style type="text/css">
+.btn {cursor: pointer;}
+.hidden {display: none;}
+#chat_contents {width: 260px;height:200px;overflow-y:scroll;border: 1px solid #999;font-size:12px;}
+#chat_contents.impossible {background-color: #efefef;}
+#chat_input {width: 200px;}
+#chat_input.impossible {background-color: #efefef;}
+</style>
+<script type="text/javascript" src="jquery-1.7.2.min.js"></script>
+<script type="text/javascript" src="http://localhost:8080/socket.io/socket.io.js"></script>
+<script type="text/javascript">
+var chat = new CChat();
+$(document).ready(function() {
+	$('#btn_connect').click(function() {
+		$('#btn_connect').addClass('hidden');
+		$('#btn_disconnect,#chat_screen').removeClass('hidden');
+
+		chat.connect();
+	});
+
+	$('#btn_disconnect').click(function() {
+		$('#btn_connect').removeClass('hidden');
+		$('#btn_disconnect,#chat_screen').addClass('hidden');
+	});
+
+	$('#chat_input').keyup(function(e) {
+		if(e.keyCode==13){
+        	chat.send();
+        }
+	});
+
+	$('#btn_chat_input').click(function() {
+		chat.send();
+	});
+});
+
+function CChat() {
+	this.chatname = '손님';
+    this.id = '<?php echo UNIQUE_ID?>';
+    this.connect = function() {
+        var _this = this;
+        if(typeof(socket) == 'undefined') {
+        	if(typeof(io) == 'undefined') {
+            	this.chatImpossible('서버에 접속할 수 없습니다.');
+            	return;
+        	}
+            socket = io.connect('http://localhost:8080');
+        }
+
+        socket.on('connect', function() {
+            socket.emit('customer_connect', {id: _this.id}, function(res) {
+                if(res.state) {
+                	_this.chatPossible();
+                	if(typeof(res.msg) == 'object')
+                		_this.printMsgs(res.msg);
+                	else
+                	    _this.printMsg(res.msg);
+                }
+                else {
+                    _this.chatImpossible('상담원이 자리에 없습니다.', true);
+                }
+            });
+        });
+
+        socket.on('message', function(res){
+            _this.printMsg(res.msg, res.color);
+        });
+
+        socket.on('disconnect', function() {
+            _this.chatImpossible('서버와 연결이 끊어졌습니다.');
+        });
+
+        socket.on('admin_connect', function(res) {
+            _this.chatPossible('운상담원이 접속하였습니다.');
+        });
+
+        socket.on('admin_leave', function(res) {
+            _this.chatImpossible('상담원이 자리에 없습니다.');
+        });
+    };
+    this.send = function() {
+    	var _this = this;
+        var chat_input = $('#chat_input');
+        var msg = $.trim(chat_input.val());
+        if(!msg) {
+            alert('내용을 입력해주세요.');
+            chat_input.focus();
+            return;
+        }
+        msg = this.chatname + ' : ' + msg;
+        socket.emit('customer_message', {id:_this.id, msg: msg});
+        chat_input.val('');
+        this.printMsg(msg, '#0000ff');
+    };
+    this.printMsg = function(msg, color) {
+		color = color || '#000';
+        msg = msg.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        var obj = $('#chat_contents');
+        obj.append('<div style="color:'+color+';">'+msg+'</div>');
+        obj.scrollTop(obj[0].scrollHeight);
+
+        var obj2 = obj.find('div');
+        var len = obj2.length;
+        if(len > 50) {
+        	obj2.first().remove();
+        }
+    };
+    this.printMsgs = function(msg) {
+        var obj = $('#chat_contents');
+        for(var i in msg) {
+            obj.append('<div style="color:#aaa;">'+(msg[i].replace(/</g, "&lt;").replace(/>/g, "&gt;"))+'</div>');
+        }
+        obj.scrollTop(obj.height());
+    };
+    this.chatImpossible = function(msg, clr) {
+        msg = msg || '';
+        clr = clr || false;
+
+        if(clr) {
+    	    $('#chat_contents').empty();
+    	}
+        $('#chat_contents,#chat_input').addClass('impossible').prop('disabled', true);
+
+        if(msg)
+            this.printMsg(msg);
+    };
+    this.chatPossible = function(msg, clr) {
+    	msg = msg || '';
+    	clr = clr || false;
+
+    	if(clr) {
+    	    $('#chat_contents').empty();
+    	}
+    	$('#chat_contents,#chat_input').removeClass('impossible').prop('disabled', false);
+
+    	if(msg)
+    	    this.printMsg(msg);
+    };
+}
+</script>
+</head>
+<body>
+<div>상담페이지(<?php echo $_COOKIE['unique_id']?>)</div>
+<div>
+    <button id="btn_connect" class="btn">시작</button>
+</div>
+<div id="chat_screen" class="hidden">
+    <div id="chat_contents"></div>
+    <input type="text" name="chat_input" id="chat_input" /> <button id="btn_chat_input" class="btn">전송</button>
+</div>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<?php
+header('Content-type: text/html; charset=euc-kr'); 
+?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=euc-kr">
+<title>Insert title here</title>
+<style type="text/css">
+.btn {cursor: pointer;}
+.hidden {display: none;}
+.chat_contents {width: 260px;height:200px;overflow-y:scroll;border: 1px solid #999;font-size:12px;}
+.chat_contents.impossible {background-color: #efefef;}
+.chat_input {width: 200px;}
+.chat_input.impossible {background-color: #efefef;}
+</style>
+<script type="text/javascript" src="jquery-1.7.2.min.js"></script>
+<script type="text/javascript" src="http://localhost:8080/socket.io/socket.io.js"></script>
+<script type="text/javascript">
+var chat = new CCahtAdmin();
+$(document).ready(function() {
+	//create_room 
+	//create_all_room
+	//admin_delete_room
+	chat.connect();
+});
+
+function CCahtAdmin() {
+	this.chatname = '운영자';
+	this.connect = function() {
+		var _this = this;
+        if(typeof(socket) == 'undefined') {
+        	if(typeof(io) == 'undefined') {
+            	document.write('서버에 접속할 수 없습니다.');
+            	return;
+        	}
+            socket = io.connect('http://localhost:8080');
+        }
+
+        socket.on('connect', function() {
+            socket.emit('1AE5D38B517_admin_connect', {});
+        });
+
+        socket.on('message', function(res) {
+            _this.printMsg(res.id, res.msg, res.color);
+            music_play();
+        });
+
+        socket.on('admin_create_all_rooms', function(res){
+            var str = '';
+            for(var i in res) {
+            	str += '<div id="'+i+'" style="float:left"><div class="chat_contents">';
+                for(var j in res[i]) {
+                	str += '<div style="color:#aaa;">'+(res[i][j].replace(/</g, "&lt;").replace(/>/g, "&gt;"))+'</div>';
+                }
+                str += '</div><input type="text" name="chat_input" class="chat_input" onkeyup="if(event.keyCode == 13) chat.send(\''+i+'\');" /> <button class="btn" onclick="chat.send(\''+i+'\');">전송</button></div>';
+            }
+            $('#rooms').empty().append(str);
+            $('.chat_contents').each(function() {
+    			$(this).scrollTop($(this).height());
+    		});
+        });
+
+        socket.on('admin_create_room', function(res){
+        	var str = '<div id="'+res.id+'" style="float:left"><div class="chat_contents"></div><input type="text" name="chat_input" class="chat_input" onkeyup="if(event.keyCode == 13) chat.send(\''+res.id+'\');" /> <button class="btn" onclick="chat.send(\''+res.id+'\');">전송</button></div>';
+        	$('#rooms').append(str);
+        	_this.printMsg(res.id, '새로운 접속입니다.');
+        });
+
+        socket.on('admin_delete_room', function(res) {
+            $('#'+res.id).remove();
+        });
+
+        socket.on('disconnect', function() {
+            _this.chatImpossible('서버와 연결이 끊어졌습니다.');
+        });
+	};
+	this.enter = function(e, id) {
+		if(e.keyCode==13){
+        	chat.send(id);
+        }
+	};
+	this.send = function(id) {
+        var chat_input = $('#'+id+' .chat_input');
+        var msg = $.trim(chat_input.val());
+        if(!msg) {
+            alert('내용을 입력해주세요.');
+            chat_input.focus();
+            return;
+        }
+        msg = this.chatname + ' : ' + msg;
+        socket.emit('3DE968DBBF4_admin_message', {id: id, msg: msg});
+        chat_input.val('');
+        this.printMsg(id, msg, '#800000');
+	};
+	this.printMsg = function(id, msg, color) {
+		color = color || '#000';
+		var obj = $('#'+id+' .chat_contents'); 
+		obj.append('<div style="color:'+color+';">'+(msg.replace(/</g, "&lt;").replace(/>/g, "&gt;"))+'</div>');
+		obj.scrollTop(obj[0].scrollHeight);
+
+		var obj2 = obj.find('div');
+        var len = obj2.length;
+        if(len > 50) {
+        	obj2.first().remove();
+        }
+	};
+	this.printAllMsg = function(msg) {
+		var obj = $('.chat_contents');
+		obj.append('<div style="color:#aaa;">'+msg+'</div>');
+		obj.each(function() {
+			$(this).scrollTop($(this).height());
+		});
+	};
+	this.chatImpossible = function(msg) {
+        $('.chat_contents,.chat_input').addClass('impossible').prop('disabled', true);
+        this.printAllMsg(msg);
+    };
+};
+
+/**
+ * 음악재생기
+ */
+function music_player() {
+	document.write("<OBJECT ID='musicPlayer' WIDTH=0 HEIGHT=0 hspace=0 vspace=0 CLASSID='CLSID:22D6f312-B0F6-11D0-94AB-0080C74C7E95' STANDBY='Loading Windows Media Player components...' TYPE='application/x-oleobject' CODEBASE='http://activex.microsoft.com/activex/controls/mplayer/en/nsmp2inf.cab#Version=6,4,7,1112'><param name='filename' value='recv_chat.wav'><PARAM NAME=ShowControls VALUE=0><PARAM NAME=ShowGotoBar VALUE=0><PARAM NAME=ShowStatusBar VALUE=0><PARAM NAME=ControlType VALUE=2><PARAM NAME=AutoStart value=0><PARAM NAME=ShowDisplay value=0><PARAM NAME=Enabled VALUE=false><PARAM NAME=EnableContextMenu Value=false><PARAM NAME=Volume value=0><PARAM NAME=BufferingTime value=0><PARAM NAME=ShowCaptioning value=false><PARAM NAME=Loop value=0><Embed type='application/x-mplayer2' pluginspage='http://www.microsoft.com/Windows/Downloads/Contents/Products/MediaPlayer/' Name='Player' width='0' height='0' SHOWSTATUSBAR='-1' SHOWCONTROLS='0' SHOWGOTOBAR='0' SHOWDISPLAY='-1' INVOKEURLS='-1' AUTOSTART='0' CLICKTOPLAY='0' filename='recv_chat.wav' ShowCaptioning='false' LOOP='0'></Embed></OBJECT>");
+}
+/**
+ * 음악재생
+ */
+function music_play() {
+	$('#musicPlayer')[0].Play();
+}
+</script>
+</head>
+<body>
+<div>관리자페이지</div>
+<div id="rooms"></div>
+<script type="text/javascript">music_player();</script>
+</body>
+</html>
